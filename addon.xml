@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="plugin.video.telkkarista" name="telkkarista" version="0.0.1" provider-name="grinsted">
+    <requires>
+        <import addon="xbmc.python" version="2.1.0"/>
+        <import addon="script.module.requests" version="2.3.0"/>
+        <import addon="script.module.dateutil" version="2.4.2"/>
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="default.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <platform>all</platform>
+        <language>fi</language>
+        <summary lang="en">Watch telkkarista.com with KODI</summary>        
+        <summary lang="fi">Katso telkkarista.com:ia KODI:llä</summary>        
+        <description lang="en">Watch Finnish commercial telkkarista streaming services with KODI. Requires a telkkarista user account. See http://telkkarista.com for more details.</description>
+        <description lang="fi">Katso kaupallista telkkarista-tv-tallenninta KODI:llä. Tarvitsee telkkarista-käyttäjätunnuksen. Lisätietoja: http://telkkarista.com</description>
+        <license>GNU GENERAL PUBLIC LICENSE. Version 2, June 1991</license>
+        <source>https://github.com/grinsted/plugin.video.telkkarista</source>
+        <website>https://github.com/grinsted/plugin.video.telkkarista</website>
+    </extension>
+</addon>
