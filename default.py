@@ -7,7 +7,7 @@
 # change history:
 #
 #
-# Github url
+# Github: https://github.com/grinsted/plugin.video.telkkarista
 # 
 # Aslak Grinsted 2015 
 
@@ -30,8 +30,6 @@ APIROOT='http://api.telkkarista.com/1/'
 #PLAYROOT='http://46.166.187.206' #todo list servers and autopick....
 PLAYROOT='http://proxy1.telkkarista.com'
 
-#channels=['yletv1','yletv2','mtv3','nelonen','sub','hero','ava','liv','tv5','fox','jim','yleteema','frii','ylefem','kutonen']
-
 def login():
   headers = {'User-Agent': "telkkarista for kodi version "+VERSION+";"}
   data={'email': telkkarista_addon.getSetting("username"), 'password': telkkarista_addon.getSetting("password")}
@@ -49,12 +47,13 @@ def apiget(url,data,allowrecursion=True):
   if not isinstance(data, basestring):
     data = json.dumps(data)
   response=requests.post(url=APIROOT+url,data=data,headers=headers)
-  #TODO add checks for server down and expired key....
+  #TODO add checks for server down ....
   response=response.json()
   #if key expired:
   if response['status'] == 'error':
     if response['code'] == 'invalid_session':
       if allowrecursion:
+        abmx.log('Telkkarista invalid session - logging in...')
         login()
         return apiget(url=url,data=data,allowrecursion=False)
   return response['payload']
@@ -82,7 +81,7 @@ def settings():
 def menu():
   t2=datetime.datetime.now()
   t1=t2 - datetime.timedelta(days=1)
-  data = json.dumps({"from":t1.isoformat(),"to":t2.isoformat()})  
+  data = json.dumps({"from":t1.isoformat(),"to":t2.isoformat()})
   u=sys.argv[0]+"?mode=listprograms&url=epg/range&data="+requests.utils.quote(data)
   listfolder = xbmcgui.ListItem(language(30102)) #'Kanavat - tänään'
   listfolder.setInfo('video', {'Title': language(30102)})
@@ -140,11 +139,19 @@ def listprograms(url,data):
   #  xbmcplugin.addDirectoryItem(int(sys.argv[1]), u, listfolder, isFolder=0)
   #  xbmcplugin.endOfDirectory(int(sys.argv[1]))
   #  return
-  if type(content) is list: content={'all': content}
+  assumeRecordInStorage=False
+  if type(content) is list: 
+    content={'all': content}
+    assumeRecordInStorage=True
   for stream in content:
     channel=stream
     for p in content[stream]:
-      if not ('record' in p): continue #skip if it is not recorded yet
+      xbmc.log(repr(p))
+      if not ('record' in p):
+        if assumeRecordInStorage: 
+          p['record']='storage'
+        else: 
+          continue #skip if it is not recorded yet
       if p['record']=='pending': continue
       if 'channel' in p: channel=p['channel']
       title=p['title']['fi']
@@ -257,6 +264,7 @@ try:
 except:
   pass
 
+xbmc.log('TELKKARISTA\n'+repr(params))
 
 
 if mode==None:
@@ -275,3 +283,5 @@ elif mode=='listsearches':
   listsearches()
 elif mode=='delsearches':
   delsearches()
+else:
+  xbmc.log('TELKKARISTA UNKNOWN MODE')
