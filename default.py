@@ -15,7 +15,7 @@
 VERSION = "0.0.1"
 
 import xbmc, xbmcgui, requests, json, re, os, xbmcplugin, urllib, time, xbmcaddon
-import datetime
+import datetime, urlparse, random
 import dateutil.parser
 telkkarista_addon = xbmcaddon.Addon("plugin.video.telkkarista");
 language = telkkarista_addon.getLocalizedString
@@ -124,26 +124,6 @@ def menu():
 
 
 
-# parse parameters when plugin is run
-def get_params():
-  #TODO use urllib.urlparse.parse_qs instead
-
-  param=[]
-  paramstring=sys.argv[2]
-  xbmc.log('----------------------------------------------telkkarista paramstring:'+paramstring)
-  if len(paramstring)>=2:
-      params=sys.argv[2]
-      cleanedparams=params.replace('?','')
-      if (params[len(params)-1]=='/'):
-        params=params[0:len(params)-2]
-      pairsofparams=cleanedparams.split('&')
-      param={}
-      for i in range(len(pairsofparams)):
-        splitparams={}
-        splitparams=pairsofparams[i].split('=')
-        if (len(splitparams))==2:
-          param[splitparams[0]]=splitparams[1]
-  return param
 
 #list the programs in a feed
 def listprograms(url,data):
@@ -206,12 +186,13 @@ def livetv():
   t=datetime.datetime.now()
   content=apiget('streams/get','')
   sessionkey=telkkarista_addon.getSetting("sessionkey")
+  content=sorted(content, key=lambda k: k['streamOrder']) 
   for p in content:
     channel=p['name']
     title=p['visibleName']
     playurl = '%s/%s/live/%s.m3u8' % (PLAYROOT, sessionkey, channel)
     #http://46.166.187.206/55568915febb6c574beb42fb.-43b36895/live/yletv1.m3u8
-    iconurl='%s/%s/live/%s_small.jpg' % (PLAYROOT, sessionkey, channel)
+    iconurl='%s/%s/live/%s_small.jpg?%i' % (PLAYROOT, sessionkey, channel, random.randint(0,2e9))
     #http://46.166.187.206/55568915febb6c574beb42fb.-43b36895/live/nelonen_small.jpg?1431734568978
     listitem = xbmcgui.ListItem(label=title, iconImage=iconurl)
     xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=playurl,listitem=listitem)
@@ -264,14 +245,15 @@ def delsearches():
 #main program
 
 
-params=get_params()
+#params=get_params()
+params=dict(urlparse.parse_qsl(urlparse.urlparse(sys.argv[2]).query))#urlparse.parse_qs(urlparse.urlparse(sys.argv[2]).query)
 mode=None
 data=None
 url=None
 try:
   mode=params["mode"]
-  data=requests.utils.unquote(params["data"])
-  url=requests.utils.unquote(params["url"])
+  data=params["data"]
+  url=params["url"]
 except:
   pass
 
