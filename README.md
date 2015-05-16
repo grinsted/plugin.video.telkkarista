@@ -1,8 +1,8 @@
-plugin.video.tvkaista
-=====================
+plugin.video.telkkarista
+========================
 
-http://xbmc.org plugin for http://www.tvkaista.fi service
+http://kodi.tv plugin for http://telkkarista.com service. 
 
-Author has no relations to the tvkaista service, he is just a happy customer.
+Note: requires an account with telkkarista.com
 
-Previously developed at http://code.google.com/p/tvkaistaforxbmc/ and http://code.google.com/p/tvkaistaforxbmcv2/
+The author has no relations to the telkkarista service, he is just a happy user.
