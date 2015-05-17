@@ -48,10 +48,13 @@ sys.path.append( os.path.join( BASE_RESOURCE_PATH, "lib" ) )
 from string import split, replace, find
 
 APIROOT='http://api.telkkarista.com/1/'
-#PLAYROOT='http://46.166.187.206' #todo list servers and autopick....
-PLAYROOT='http://proxy1.telkkarista.com'
+PLAYROOT=telkkarista_addon.getSetting("currentcachehost")
+sessionkey=telkkarista_addon.getSetting("currentcachehost")
+
 
 def login():
+  global PLAYROOT
+  global sessionkey
   headers = {'User-Agent': "telkkarista for kodi version "+VERSION+";"}
   data={'email': telkkarista_addon.getSetting("username"), 'password': telkkarista_addon.getSetting("password")}
   response=requests.post(url=APIROOT+'user/login',data=json.dumps(data),headers=headers)
@@ -60,21 +63,36 @@ def login():
   sessionkey=response['payload']
   xbmc.log('TELKKARISTA LOGIN!')
   telkkarista_addon.setSetting("sessionkey",sessionkey)
+  preferredhosts=telkkarista_addon.getSetting("preferredhosts").split(',')
+  #if not preferredhosts: speedtest()
+  servers=apiget('cache/get')
+  servers=dict((s['host'], s['country']) for s in servers if s['status']=='up')
+  if len(servers)==0:
+    xbmcgui.dialog.ok(" All cache servers are down! ")
+    return
+  for host in preferredhosts:
+    if host in servers:
+      PLAYROOT=host
+      telkkarista_addon.setSetting("currentcachehost",host) #Found preferredhost
+      return
+  PLAYROOT=servers.keys()[0]
+  telkkarista_addon.setSetting("currentcachehost",PLAYROOT)
 
-def apiget(url,data,allowrecursion=True):
+
+def apiget(url,data='',allowrecursion=True):
   sessionkey=telkkarista_addon.getSetting("sessionkey")
   if sessionkey=='': login()
   headers = {'X-SESSION': sessionkey, 'User-Agent': "telkkarista for kodi version "+VERSION+";"}
   if not isinstance(data, basestring):
     data = json.dumps(data)
   response=requests.post(url=APIROOT+url,data=data,headers=headers)
-  #TODO add checks for server down ....
+  #TODO add checks for response errors....
   response=response.json()
   #if key expired:
   if response['status'] == 'error':
     if response['code'] == 'invalid_session':
       if allowrecursion:
-        abmx.log('Telkkarista invalid session - logging in...')
+        xbmc.log('Telkkarista invalid session - logging in...')
         login()
         return apiget(url=url,data=data,allowrecursion=False)
   return response['payload']
@@ -128,6 +146,12 @@ def menu():
   listfolder.setInfo('video', {'Title': language(30101)})
   xbmcplugin.addDirectoryItem(int(sys.argv[1]), u, listfolder, isFolder=1)
 
+  u=sys.argv[0]+"?mode=speedtest"
+  listfolder = xbmcgui.ListItem(language(30108)) #asetukset
+  listfolder.setInfo('video', {'Title': language(30108)})
+  xbmcplugin.addDirectoryItem(int(sys.argv[1]), u, listfolder, isFolder=0)
+
+
   t2.replace(hour=0, minute=0, second=0, microsecond=0)
   for d in range(0,20):
     ta=t2-datetime.timedelta(days=d+1)
@@ -141,8 +165,31 @@ def menu():
 
   xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
-
-
+def speedtest():
+  #get a list of servers and do a speedtest. Store the resulting prioritized list of hosts in a setting.
+  global PLAYROOT
+  dp = xbmcgui.DialogProgress() 
+  dp.create('Running speedtests')
+  servers=apiget('cache/get','')
+  for ix,server in enumerate(servers):
+    dp.update(ix*100/len(servers),server['country'],server['host'])
+    if server['status']=='up':
+      url = 'http://%s/speedtest_1mb.bin' % (server['host'])
+      start=time.time()
+      requests.get(url)
+      delta=time.time()-start
+      server['speed']=8.0/delta
+    else:
+      server['speed']=0.0
+    if dp.iscanceled():
+      break
+  dp.close()
+  servers=sorted(servers, key=lambda k: -k['speed'])
+  hosts=[k['host'] for k in servers]
+  telkkarista_addon.setSetting("preferredhosts",",".join(hosts))
+  PLAYROOT=hosts[0]
+  telkkarista_addon.setSetting("currentcachehost",PLAYROOT) #Found preferredhost
+  
 
 
 #list the programs in a feed
@@ -161,13 +208,12 @@ def listprograms(url,data):
   #  xbmcplugin.endOfDirectory(int(sys.argv[1]))
   #  return
   assumeRecordInStorage=False
-  if type(content) is list: 
+  if type(content) is list: #epg/search gives a list, epg/range gives a dict of lists with one item per channel. 
     content={'all': content}
     assumeRecordInStorage=True
   for stream in content:
     channel=stream
     for p in content[stream]:
-      xbmc.log(repr(p))
       if not ('record' in p):
         if assumeRecordInStorage: 
           p['record']='storage'
@@ -197,10 +243,10 @@ def listprograms(url,data):
                   'Duration': (stop-start).seconds/60}
       listitem.setInfo(type='Video', infoLabels=infoLabels)
       try:
-        #playurl = '%s/%s/vod%smaster.m3u8' % (PLAYROOT, sessionkey, epgi['recordpath'])
+        #playurl = 'http://%s/%s/vod%smaster.m3u8' % (PLAYROOT, sessionkey, epgi['recordpath'])
         #xbmc.log(playurl)
         pt=start.strftime('%Y/%m/%d')
-        playurl = '%s/%s/vod/%s/%s/%s/master.m3u8' % (PLAYROOT, sessionkey, pt, pid,channel)
+        playurl = 'http://%s/%s/vod/%s/%s/%s/master.m3u8' % (PLAYROOT, sessionkey, pt, pid,channel)
         xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=playurl,listitem=listitem)
         #break
       except:
@@ -208,21 +254,34 @@ def listprograms(url,data):
   xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_DATE)
   xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
+#http://46.166.187.206/55584a9efebb6c574beb52e2.-43b36895/vod/2015/04/30/55424e3dfe00c5dada3573f0/ava/highest/Ensitreffit_alttarilla_Ruotsi-150430-2000-highest-ava.mp4
 
 def livetv():
   xbmc.log('telkkarista livetv')
   t=datetime.datetime.now()
   content=apiget('streams/get','')
+  current=apiget('epg/current','')
   sessionkey=telkkarista_addon.getSetting("sessionkey")
+
   content=sorted(content, key=lambda k: k['streamOrder']) 
   for p in content:
     channel=p['name']
     title=p['visibleName']
-    playurl = '%s/%s/live/%s.m3u8' % (PLAYROOT, sessionkey, channel)
-    #http://46.166.187.206/55568915febb6c574beb42fb.-43b36895/live/yletv1.m3u8
-    iconurl='%s/%s/live/%s_small.jpg?%i' % (PLAYROOT, sessionkey, channel, random.randint(0,2e9))
-    #http://46.166.187.206/55568915febb6c574beb42fb.-43b36895/live/nelonen_small.jpg?1431734568978
+    
+    try:
+      c=current[channel][0]
+      subtitle=c['title']['fi']
+    except Exception, e:
+      subtitle=''
+   
+    playurl = 'http://%s/%s/live/%s.m3u8' % (PLAYROOT, sessionkey, channel)
+    iconurl='http://%s/%s/live/%s_small.jpg?%i' % (PLAYROOT, sessionkey, channel, random.randint(0,2e9))
     listitem = xbmcgui.ListItem(label=title, iconImage=iconurl)
+    infoLabels={'Title': title,
+                'ChannelName': channel,
+                'PlotOutline': subtitle,
+                'Plot': subtitle}
+    listitem.setInfo(type='Video', infoLabels=infoLabels)
     xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=playurl,listitem=listitem)
   xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
@@ -270,10 +329,7 @@ def delsearches():
     dialog.ok('telkkarista', language(30121)) #'Viimeiset haut poistettu.'
 
 
-#main program
 
-
-#params=get_params()
 params=dict(urlparse.parse_qsl(urlparse.urlparse(sys.argv[2]).query))#urlparse.parse_qs(urlparse.urlparse(sys.argv[2]).query)
 mode=None
 data=None
@@ -304,5 +360,7 @@ elif mode=='listsearches':
   listsearches()
 elif mode=='delsearches':
   delsearches()
+elif mode=='speedtest':
+  speedtest()
 else:
   xbmc.log('TELKKARISTA UNKNOWN MODE')
