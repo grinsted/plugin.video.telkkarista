@@ -37,7 +37,7 @@ VERSION = "0.0.1"
 
 import xbmc, xbmcgui, requests, json, re, os, xbmcplugin, urllib, time, xbmcaddon
 import datetime, urlparse, random
-import dateutil.parser
+import dateutil.parser, dateutil.tz
 telkkarista_addon = xbmcaddon.Addon("plugin.video.telkkarista");
 language = telkkarista_addon.getLocalizedString
 
@@ -48,8 +48,8 @@ sys.path.append( os.path.join( BASE_RESOURCE_PATH, "lib" ) )
 from string import split, replace, find
 
 APIROOT='http://api.telkkarista.com/1/'
-PLAYROOT=telkkarista_addon.getSetting("currentcachehost")
-sessionkey=telkkarista_addon.getSetting("currentcachehost")
+PLAYROOT=telkkarista_addon.getSetting("currentcachehost") #the selected server. Will be chosen at every login...
+sessionkey=telkkarista_addon.getSetting("sessionkey")
 
 
 def login():
@@ -120,7 +120,7 @@ def settings():
 def menu():
   t2=datetime.datetime.now()
   t1=t2 - datetime.timedelta(days=1)
-  data = json.dumps({"from":t1.isoformat(),"to":t2.isoformat()})
+  data = json.dumps({"from":t1.isoformat(), "to":t2.isoformat()})
   u=sys.argv[0]+"?mode=listprograms&url=epg/range&data="+requests.utils.quote(data)
   listfolder = xbmcgui.ListItem(language(30102)) #'Kanavat - tänään'
   listfolder.setInfo('video', {'Title': language(30102)})
@@ -181,21 +181,24 @@ def speedtest():
       server['speed']=8.0/delta
     else:
       server['speed']=0.0
-    if dp.iscanceled():
+    if dp.iscanceled(): #TODO: it will fail below if not all servers have a speed....
       break
   dp.close()
   servers=sorted(servers, key=lambda k: -k['speed'])
+  xbmc.log('telkkarista speedtest result:'+repr(servers))
   hosts=[k['host'] for k in servers]
   telkkarista_addon.setSetting("preferredhosts",",".join(hosts))
   PLAYROOT=hosts[0]
   telkkarista_addon.setSetting("currentcachehost",PLAYROOT) #Found preferredhost
   
-
+def parsedate(datestr):
+  t=dateutil.parser.parse(datestr)
+  t=t.astimezone(dateutil.tz.tzlocal())
+  return t
+  
 
 #list the programs in a feed
 def listprograms(url,data):
-  #print "listprograms avataan: "+url+'/'+bitrate()+'.rss'
-  xbmc.log('telkkarista listprograms'+url+data)
   #try:
   content=apiget(url,data)
   sessionkey=telkkarista_addon.getSetting("sessionkey")
@@ -210,7 +213,7 @@ def listprograms(url,data):
   assumeRecordInStorage=False
   if type(content) is list: #epg/search gives a list, epg/range gives a dict of lists with one item per channel. 
     content={'all': content}
-    assumeRecordInStorage=True
+    assumeRecordInStorage=True #epg/search does not return a record field
   for stream in content:
     channel=stream
     for p in content[stream]:
@@ -223,8 +226,8 @@ def listprograms(url,data):
       if 'channel' in p: channel=p['channel']
       title=p['title']['fi']
       pid=p['pid']
-      start=dateutil.parser.parse(p['start'])
-      stop=dateutil.parser.parse(p['stop'])
+      start=parsedate(p['start'])
+      stop=parsedate(p['stop'])
       subtitle='%s  %imin\n%s' % (channel.upper(), (stop-start).seconds/60, repr(p))
       if not p['record']=='storage': title='%s [%s]' % (title,p['record'])
       #epgi=apiget('epg/info',{'pid':pid}) #slows it down for long lists....
@@ -245,16 +248,16 @@ def listprograms(url,data):
       try:
         #playurl = 'http://%s/%s/vod%smaster.m3u8' % (PLAYROOT, sessionkey, epgi['recordpath'])
         #xbmc.log(playurl)
-        pt=start.strftime('%Y/%m/%d')
-        playurl = 'http://%s/%s/vod/%s/%s/%s/master.m3u8' % (PLAYROOT, sessionkey, pt, pid,channel)
-        xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=playurl,listitem=listitem)
+        #pt=start.strftime('%Y/%m/%d')
+        #playurl = 'http://%s/%s/vod/%s/%s/%s/master.m3u8' % (PLAYROOT, sessionkey, pt, pid,channel)
+        data = json.dumps({"pid":pid});
+        u=sys.argv[0]+"?mode=playitem&data="+requests.utils.quote(data)
+        xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=u,listitem=listitem)
         #break
       except:
         pass
   xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_DATE)
   xbmcplugin.endOfDirectory(int(sys.argv[1]))
-
-#http://46.166.187.206/55584a9efebb6c574beb52e2.-43b36895/vod/2015/04/30/55424e3dfe00c5dada3573f0/ava/highest/Ensitreffit_alttarilla_Ruotsi-150430-2000-highest-ava.mp4
 
 def livetv():
   xbmc.log('telkkarista livetv')
@@ -267,13 +270,11 @@ def livetv():
   for p in content:
     channel=p['name']
     title=p['visibleName']
-    
     try:
       c=current[channel][0]
       subtitle=c['title']['fi']
     except Exception, e:
-      subtitle=''
-   
+      subtitle=''   
     playurl = 'http://%s/%s/live/%s.m3u8' % (PLAYROOT, sessionkey, channel)
     iconurl='http://%s/%s/live/%s_small.jpg?%i' % (PLAYROOT, sessionkey, channel, random.randint(0,2e9))
     listitem = xbmcgui.ListItem(label=title, iconImage=iconurl)
@@ -285,7 +286,25 @@ def livetv():
     xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=playurl,listitem=listitem)
   xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
-# displays the virtual keyboard and lists search results
+def playitem(data):
+  #data=json.loads(data)
+  #pid=data['pid']
+  epgi=apiget('epg/info',data)
+  sessionkey=telkkarista_addon.getSetting("sessionkey")  
+  try:
+    mp4quality=epgi['downloadFormats']['mp4'][0] #assume first =highest quality
+    playurl = 'http://%s/%s/vod%s%s.mp4' % (PLAYROOT, sessionkey, epgi['recordpath'],quality)
+  except:  
+    playurl = 'http://%s/%s/vod%smaster.m3u8' % (PLAYROOT, sessionkey, epgi['recordpath'])
+  listitem = xbmcgui.ListItem(label=epgi['title']['fi'], iconImage="DefaultVideo.png")
+  infoLabels={'Title': epgi['title']['fi'], 
+              'ChannelName': epgi['channel'],
+              'PlotOutline': epgi['sub-title']['fi'],
+              'Plot': epgi['sub-title']['fi']}
+  xbmc.Player().play(playurl,listitem)
+  #xbmc.Player().play(playurl,listitem)
+
+# display the virtual keyboard and lists search results
 def search():
   keyboard = xbmc.Keyboard()
   keyboard.doModal()
@@ -303,7 +322,6 @@ def search():
 
 #list searches that are stored in plugin settings
 def listsearches():
-  xbmc.log('telkkarista search')
   u=sys.argv[0]+"?mode=search"
   listfolder = xbmcgui.ListItem(language(30118)) #'Uusi haku'
   xbmcplugin.addDirectoryItem(int(sys.argv[1]), u, listfolder, isFolder=1)
@@ -346,8 +364,8 @@ xbmc.log('TELKKARISTA\n'+repr(params))
 
 if mode==None:
   settings()
-#elif mode=='listfeeds':
-#  listfeeds(url)
+elif mode=='playitem':
+  playitem(data)
 elif mode=='listprograms':
   listprograms(url,data)
 elif mode=='search':
