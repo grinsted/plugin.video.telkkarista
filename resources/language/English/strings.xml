@@ -2,12 +2,10 @@
 <strings>
     <string id="30000">Telkkarista Username</string>
     <string id="30001">Telkkarista Password</string>
-    <string id="30003">Video format</string>
+    <string id="30002">Preferred quality</string>
     <string id="30004">Search</string>
     <string id="30005">Favourites</string>
-    <string id="30006">set proxy server from website</string>
-    <string id="30007">see www.Telkkarista.com/speedtest.html</string>
-
+	<string id="30006">Host order</string>
 
 	<string id="30101">Settings</string>
 	<string id="30102">Programs - today</string>
@@ -16,7 +14,7 @@
 	<string id="30105">Movies</string>
 	<string id="30106">Search</string>
 	<string id="30107">Live TV</string>
-	<string id="30108">Speedtest</string>
+	<string id="30108">Speed test</string>
 
 
 	<string id="30108">Add to list</string>

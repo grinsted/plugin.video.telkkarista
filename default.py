@@ -41,7 +41,6 @@ import dateutil.parser, dateutil.tz
 telkkarista_addon = xbmcaddon.Addon("plugin.video.telkkarista");
 language = telkkarista_addon.getLocalizedString
 
-
 BASE_RESOURCE_PATH = xbmc.translatePath( os.path.join( telkkarista_addon.getAddonInfo('path'), "resources" ) )
 sys.path.append( os.path.join( BASE_RESOURCE_PATH, "lib" ) )
 
@@ -58,14 +57,13 @@ def login():
   headers = {'User-Agent': "telkkarista for kodi version "+VERSION+";"}
   data={'email': telkkarista_addon.getSetting("username"), 'password': telkkarista_addon.getSetting("password")}
   response=requests.post(url=APIROOT+'user/login',data=json.dumps(data),headers=headers)
-  #TODO add checks for server down and expired key....
   response=response.json()
   sessionkey=response['payload']
-  xbmc.log('TELKKARISTA LOGIN!')
+  xbmc.log('TELKKARISTA LOGIN! %s' % (sessionkey))
   telkkarista_addon.setSetting("sessionkey",sessionkey)
   preferredhosts=telkkarista_addon.getSetting("preferredhosts").split(',')
   #if not preferredhosts: speedtest()
-  servers=apiget('cache/get')
+  servers=apiget('cache/get','',False)
   servers=dict((s['host'], s['country']) for s in servers if s['status']=='up')
   if len(servers)==0:
     xbmcgui.dialog.ok(" All cache servers are down! ")
@@ -80,7 +78,8 @@ def login():
 
 
 def apiget(url,data='',allowrecursion=True):
-  sessionkey=telkkarista_addon.getSetting("sessionkey")
+  global sessionkey
+  xbmc.log(sessionkey)
   if sessionkey=='': login()
   headers = {'X-SESSION': sessionkey, 'User-Agent': "telkkarista for kodi version "+VERSION+";"}
   if not isinstance(data, basestring):
@@ -90,6 +89,7 @@ def apiget(url,data='',allowrecursion=True):
   response=response.json()
   #if key expired:
   if response['status'] == 'error':
+    xbmc.log('telkkarista apiget error' % (repr(response)))
     if response['code'] == 'invalid_session':
       if allowrecursion:
         xbmc.log('Telkkarista invalid session - logging in...')
@@ -146,10 +146,6 @@ def menu():
   listfolder.setInfo('video', {'Title': language(30101)})
   xbmcplugin.addDirectoryItem(int(sys.argv[1]), u, listfolder, isFolder=1)
 
-  u=sys.argv[0]+"?mode=speedtest"
-  listfolder = xbmcgui.ListItem(language(30108)) #asetukset
-  listfolder.setInfo('video', {'Title': language(30108)})
-  xbmcplugin.addDirectoryItem(int(sys.argv[1]), u, listfolder, isFolder=0)
 
 
   t2.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -237,6 +233,7 @@ def listprograms(url,data):
       #  pass
       label = '%s | %s' % (start.strftime('%H:%M'),title)
       listitem = xbmcgui.ListItem(label=label, iconImage="DefaultVideo.png")
+      listitem.setProperty('IsPlayable','true')
       infoLabels={'Title': label, 
                   'ChannelName': channel,
                   'PlotOutline': subtitle,
@@ -257,6 +254,7 @@ def listprograms(url,data):
       except:
         pass
   xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_DATE)
+ # xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_DATE)
   xbmcplugin.endOfDirectory(int(sys.argv[1]))
 
 def livetv():
@@ -290,18 +288,32 @@ def playitem(data):
   #data=json.loads(data)
   #pid=data['pid']
   epgi=apiget('epg/info',data)
-  sessionkey=telkkarista_addon.getSetting("sessionkey")  
+  quality=telkkarista_addon.getSetting("quality").split()
+  sessionkey=telkkarista_addon.getSetting("sessionkey")
+
+  #fallback:
+  playurl = 'http://%s/%s/vod%smaster.m3u8' % (PLAYROOT, sessionkey, epgi['recordpath'])
   try:
-    mp4quality=epgi['downloadFormats']['mp4'][0] #assume first =highest quality
-    playurl = 'http://%s/%s/vod%s%s.mp4' % (PLAYROOT, sessionkey, epgi['recordpath'],quality)
+    if quality[1]=='mp4':
+      if quality[0] in epgi['downloadFormats']['mp4']:
+        mp4quality=quality[0]   
+      else:  
+        mp4quality=epgi['downloadFormats']['mp4'][0] #assume first =highest quality
+      playurl = 'http://%s/%s/vod%s%s.mp4' % (PLAYROOT, sessionkey, epgi['recordpath'],mp4quality)
   except:  
-    playurl = 'http://%s/%s/vod%smaster.m3u8' % (PLAYROOT, sessionkey, epgi['recordpath'])
-  listitem = xbmcgui.ListItem(label=epgi['title']['fi'], iconImage="DefaultVideo.png")
+    pass
+  xbmc.log('Telkkarista RESOLVED PLAY URL=%s' % (playurl))
+  try:
+    subtitle = epgi['sub-title']['fi']
+  except:
+    subtitle=''
+  listitem = xbmcgui.ListItem(label=epgi['title']['fi'], iconImage="DefaultVideo.png", path=playurl)
   infoLabels={'Title': epgi['title']['fi'], 
               'ChannelName': epgi['channel'],
-              'PlotOutline': epgi['sub-title']['fi'],
-              'Plot': epgi['sub-title']['fi']}
-  xbmc.Player().play(playurl,listitem)
+              'PlotOutline': subtitle,
+              'Plot': subtitle}
+  #xbmc.Player().play(playurl,listitem)
+  xbmcplugin.setResolvedUrl(handle=int(sys.argv[1]), succeeded=True, listitem=listitem)
   #xbmc.Player().play(playurl,listitem)
 
 # display the virtual keyboard and lists search results
@@ -347,6 +359,7 @@ def delsearches():
     dialog.ok('telkkarista', language(30121)) #'Viimeiset haut poistettu.'
 
 
+xbmc.log('TELKKARISTA\n'+repr(sys.argv))
 
 params=dict(urlparse.parse_qsl(urlparse.urlparse(sys.argv[2]).query))#urlparse.parse_qs(urlparse.urlparse(sys.argv[2]).query)
 mode=None

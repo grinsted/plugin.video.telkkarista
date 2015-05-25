@@ -2,4 +2,8 @@
 <settings>
    <setting id="username" type="text" label="30000" default=""/>
    <setting id="password" type="text" option="hidden" label="30001" default=""/>
+   <setting id="quality" label="30002" type="labelenum" values="1080p mp4|720p mp4|highest mp4|hi mp4|med mp4|master m3u8"/> 
+   <setting type='sep'/>
+   <setting label="30108" type="action" action="RunScript(plugin.video.telkkarista,1,?mode=speedtest)"/>
+   <setting label="30007" id="preferredhosts" type="text" enable="0" />
 </settings>
