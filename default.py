@@ -189,7 +189,8 @@ def speedtest():
   
 def parsedate(datestr):
   t=dateutil.parser.parse(datestr)
-  t=t.astimezone(dateutil.tz.tzlocal())
+  #t=t.astimezone(dateutil.tz.tzlocal())
+  t=t.astimezone(dateutil.tz.gettz('Europe/Helsinki'))
   return t
   
 
