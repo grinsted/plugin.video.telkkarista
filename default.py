@@ -89,7 +89,7 @@ def apiget(url,data='',allowrecursion=True):
   response=response.json()
   #if key expired:
   if response['status'] == 'error':
-    xbmc.log('telkkarista apiget error' % (repr(response)))
+    xbmc.log('telkkarista apiget error : %s' % (repr(response)))
     if response['code'] == 'invalid_session':
       if allowrecursion:
         xbmc.log('Telkkarista invalid session - logging in...')
@@ -118,7 +118,8 @@ def settings():
 
 # paavalikko
 def menu():
-  t2=datetime.datetime.now()
+  t2=datetime.datetime.now(dateutil.tz.tzlocal())
+  t2=t2.astimezone(dateutil.tz.gettz('Europe/Helsinki'))
   t1=t2 - datetime.timedelta(days=1)
   data = json.dumps({"from":t1.isoformat(), "to":t2.isoformat()})
   u=sys.argv[0]+"?mode=listprograms&url=epg/range&data="+requests.utils.quote(data)
@@ -146,9 +147,7 @@ def menu():
   listfolder.setInfo('video', {'Title': language(30101)})
   xbmcplugin.addDirectoryItem(int(sys.argv[1]), u, listfolder, isFolder=1)
 
-
-
-  t2.replace(hour=0, minute=0, second=0, microsecond=0)
+  t2=t2.replace(hour=0, minute=0, second=0, microsecond=0)
   for d in range(0,20):
     ta=t2-datetime.timedelta(days=d+1)
     tb=t2-datetime.timedelta(days=d)
@@ -191,6 +190,7 @@ def parsedate(datestr):
   t=dateutil.parser.parse(datestr)
   #t=t.astimezone(dateutil.tz.tzlocal())
   t=t.astimezone(dateutil.tz.gettz('Europe/Helsinki'))
+  #Use PYTZ instead? https://gist.github.com/rambo/3972720
   return t
   
 
