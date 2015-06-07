@@ -46,7 +46,8 @@ sys.path.append( os.path.join( BASE_RESOURCE_PATH, "lib" ) )
 
 from string import split, replace, find
 
-APIROOT='http://api.telkkarista.com/1/'
+APIROOT='https://api.telkkarista.com/1/'
+LOGINROOT='https://api.telkkarista.com/1/'
 PLAYROOT=telkkarista_addon.getSetting("currentcachehost") #the selected server. Will be chosen at every login...
 sessionkey=telkkarista_addon.getSetting("sessionkey")
 
@@ -56,7 +57,8 @@ def login():
   global sessionkey
   headers = {'User-Agent': "telkkarista for kodi version "+VERSION+";"}
   data={'email': telkkarista_addon.getSetting("username"), 'password': telkkarista_addon.getSetting("password")}
-  response=requests.post(url=APIROOT+'user/login',data=json.dumps(data),headers=headers)
+  response=requests.post(url=LOGINROOT+'user/login',data=json.dumps(data),headers=headers)
+  xbmc.log('telkkarista login error : %s' % (repr(response)))
   response=response.json()
   sessionkey=response['payload']
   xbmc.log('TELKKARISTA LOGIN! %s' % (sessionkey))
@@ -95,6 +97,8 @@ def apiget(url,data='',allowrecursion=True):
         xbmc.log('Telkkarista invalid session - logging in...')
         login()
         return apiget(url=url,data=data,allowrecursion=False)
+  xbmc.log('telkkarista apiget error : %s' % (repr(response)))
+  
   return response['payload']
 
 
@@ -291,6 +295,7 @@ def playitem(data):
   epgi=apiget('epg/info',data)
   quality=telkkarista_addon.getSetting("quality").split()
   sessionkey=telkkarista_addon.getSetting("sessionkey")
+  xbmc.log('Telkkarista EPGI=%s' % (epgi))
 
   #fallback:
   playurl = 'http://%s/%s/vod%smaster.m3u8' % (PLAYROOT, sessionkey, epgi['recordpath'])
