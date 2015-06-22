@@ -2,7 +2,8 @@
 <strings>
     <string id="30000">TVkaista Käyttäjätunnus</string>
     <string id="30001">TVkaista Salasana</string>
-    <string id="30002">Ensisijainen laatu</string>
+    <string id="30002">Ensisijainen format</string>
+    <string id="30003">Max bitrate</string>
     <string id="30004">Haku</string>
     <string id="30005">Suosikit</string>
 	<string id="30006">Palvelin tilaus</string>

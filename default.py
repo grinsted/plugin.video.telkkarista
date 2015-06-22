@@ -92,7 +92,7 @@ def apiget(url,data='',allowrecursion=True):
   #if key expired:
   if response['status'] == 'error':
     xbmc.log('telkkarista apiget error : %s' % (repr(response)))
-    if response['code'] == 'invalid_session':
+    if response['message'] == 'invalid_session':
       if allowrecursion:
         xbmc.log('Telkkarista invalid session - logging in...')
         login()
@@ -278,8 +278,8 @@ def livetv():
       subtitle=c['title']['fi']
     except Exception, e:
       subtitle=''   
-    playurl = 'http://%s/%s/live/%s.m3u8' % (PLAYROOT, sessionkey, channel)
-    iconurl='http://%s/%s/live/%s_small.jpg?%i' % (PLAYROOT, sessionkey, channel, random.randint(0,2e9))
+    playurl = 'https://%s/%s/live/%s.m3u8' % (PLAYROOT, sessionkey, channel)
+    iconurl='https://%s/%s/live/%s_small.jpg?%i' % (PLAYROOT, sessionkey, channel, random.randint(0,2e9))
     listitem = xbmcgui.ListItem(label=title, iconImage=iconurl)
     infoLabels={'Title': title,
                 'ChannelName': channel,
@@ -293,19 +293,21 @@ def playitem(data):
   #data=json.loads(data)
   #pid=data['pid']
   epgi=apiget('epg/info',data)
-  quality=telkkarista_addon.getSetting("quality").split()
+  preferredformat=telkkarista_addon.getSetting("format")
+  maxbitrate=telkkarista_addon.getSetting("maxbitrate")
   sessionkey=telkkarista_addon.getSetting("sessionkey")
   xbmc.log('Telkkarista EPGI=%s' % (epgi))
 
   #fallback:
-  playurl = 'http://%s/%s/vod%smaster.m3u8' % (PLAYROOT, sessionkey, epgi['recordpath'])
+  playurl = 'https://%s/%s/vod%smaster.m3u8' % (PLAYROOT, sessionkey, epgi['recordpath'])
   try:
-    if quality[1]=='mp4':
-      if quality[0] in epgi['downloadFormats']['mp4']:
-        mp4quality=quality[0]   
-      else:  
-        mp4quality=epgi['downloadFormats']['mp4'][0] #assume first =highest quality
-      playurl = 'http://%s/%s/vod%s%s.mp4' % (PLAYROOT, sessionkey, epgi['recordpath'],mp4quality)
+    if preferredformat=='mp4':
+      downloads = epgi['downloads'][preferredformat]
+      downloads = filter(lambda item: item['bitrate']<maxbitrate, downloads)
+      downloads = sorted(downloads, key=lambda k: k['bitrate'], reverse=True) 
+      download=downloads[0]
+      if download['filesize']>0:
+        playurl = 'https://%s/%s/vod%s%s.mp4' % (PLAYROOT, sessionkey, epgi['recordpath'],download['quality'])
   except:  
     pass
   xbmc.log('Telkkarista RESOLVED PLAY URL=%s' % (playurl))
