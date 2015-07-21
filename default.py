@@ -307,7 +307,8 @@ def playitem(data):
       downloads = sorted(downloads, key=lambda k: k['bitrate'], reverse=True) 
       download=downloads[0]
       if download['filesize']>0:
-        playurl = 'https://%s/%s/vod%s%s.mp4' % (PLAYROOT, sessionkey, epgi['recordpath'],download['quality'])
+        playurl = 'https://%s/%s/vod%s%s/x.mp4' % (PLAYROOT, sessionkey, epgi['recordpath'],download['quality'])
+#https://PLAYROOT/KEY/vod/2015/07/09/559da8fb85ea6bd1ce66a44d/yletv2/hi/Uutisikkuna-150709-0300-hi-yletv2.mp4        
   except:  
     pass
   xbmc.log('Telkkarista RESOLVED PLAY URL=%s' % (playurl))
@@ -315,6 +316,8 @@ def playitem(data):
     subtitle = epgi['sub-title']['fi']
   except:
     subtitle=''
+
+
   listitem = xbmcgui.ListItem(label=epgi['title']['fi'], iconImage="DefaultVideo.png", path=playurl)
   infoLabels={'Title': epgi['title']['fi'], 
               'ChannelName': epgi['channel'],
